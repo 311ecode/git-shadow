@@ -9,38 +9,26 @@ git-shadow-add() {
         git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; return 1; }
     }
 
-    git_shadow_get_repo_root() {
-        git rev-parse --show-toplevel
-    }
-
     git_shadow_get_repo_url() {
         git config --get "remote.${GIT_SHADOW_REMOTE}.url"
     }
 
     # --- Main Logic ---
-    local REPO_ROOT
-    local FILE_PATH
+    local PATTERN="$1"
     local TEMP_DIR
     local REPO_URL
     local CONFIG_PATH
 
     git_shadow_check_in_repo || return 1
 
-    if [ -z "$1" ]; then
-        echo "Usage: git-shadow-add <path-to-file-or-dir>" >&2
+    if [ -z "$PATTERN" ]; then
+        echo "Usage: git-shadow-add <pattern-to-track>" >&2
+        echo "Example: git-shadow-add 'ai-chat-data'" >&2
+        echo "Example: git-shadow-add '*.log'" >&2
         return 1
     fi
 
-    REPO_ROOT=$(git_shadow_get_repo_root)
-    FILE_PATH=$(realpath -s --relative-to="$REPO_ROOT" "$1")
-
-    if ! git -C "${REPO_ROOT}" check-ignore -q "$FILE_PATH"; then
-        echo "Error: '${FILE_PATH}' is not ignored by your main .gitignore." >&2
-        echo "Please add it to your .gitignore first." >&2
-        return 1
-    fi
-
-    echo "Adding '${FILE_PATH}' to shadow config..."
+    echo "Adding pattern '${PATTERN}' to shadow config..."
 
     TEMP_DIR=$(mktemp -d)
     REPO_URL=$(git_shadow_get_repo_url)
@@ -51,26 +39,27 @@ git-shadow-add() {
 
     if [ ! -f "$CONFIG_PATH" ]; then
         echo "Error: '${GIT_SHADOW_CONFIG_FILE}' not found in shadow branch." >&2
+        echo "Please run 'git-shadow-init' first." >&2
         rm -rf "$TEMP_DIR"
         return 1
     fi
 
-    if grep -qFx "$FILE_PATH" "$CONFIG_PATH"; then
-        echo "'${FILE_PATH}' is already in the shadow config. No changes made."
+    if grep -qFx "$PATTERN" "$CONFIG_PATH"; then
+        echo "'${PATTERN}' is already in the shadow config. No changes made."
         rm -rf "$TEMP_DIR"
         return 0
     fi
 
-    echo "${FILE_PATH}" >> "${CONFIG_PATH}"
+    echo "${PATTERN}" >> "${CONFIG_PATH}"
 
     (
         cd "$TEMP_DIR"
         git add "${GIT_SHADOW_CONFIG_FILE}"
-        git commit -m "shadow: add '${FILE_PATH}' to config"
+        git commit -m "shadow: add '${PATTERN}' to config"
         git push "${GIT_SHADOW_REMOTE}" "${GIT_SHADOW_BRANCH}"
     ) >/dev/null
 
     rm -rf "$TEMP_DIR"
-    echo "Successfully added '${FILE_PATH}' to shadow config."
-    echo "Run 'git-shadow-push' to upload the file's contents."
+    echo "Successfully added '${PATTERN}' to shadow config."
+    echo "Run 'git-shadow-push' to upload matching files."
 }
