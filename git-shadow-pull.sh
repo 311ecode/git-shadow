@@ -46,12 +46,28 @@ git-shadow-pull() {
 
     echo "Syncing files from shadow branch to working directory..."
 
+    # ⭐️ FIXED: Pull the config file itself, if it's ignored ⭐️
+    if git -C "${REPO_ROOT}" check-ignore -q "${GIT_SHADOW_CONFIG_FILE}"; then
+        cp "${CONFIG_PATH}" "${REPO_ROOT}/${GIT_SHADOW_CONFIG_FILE}"
+        echo "  <- Restoring: ${GIT_SHADOW_CONFIG_FILE}"
+    else
+        # This warning will show in testInit if the .gitignore is not set up first
+        echo "Warning: Skipping pull for '${GIT_SHADOW_CONFIG_FILE}': Not ignored on current branch." >&2
+    fi
+
+    # Now, read the config (from the temp clone) and pull what it lists
     while IFS= read -r file_path || [ -n "$file_path" ]; do
         if [ -z "$file_path" ]; then continue; fi
         if [[ "$file_path" == \#* ]]; then continue; fi
 
         SOURCE_PATH="${TEMP_DIR}/${file_path}"
         DEST_PATH="${REPO_ROOT}/${file_path}"
+
+        # ⭐️ SAFETY CHECK ⭐️
+        if ! git -C "${REPO_ROOT}" check-ignore -q "${file_path}"; then
+            echo "Warning: Skipping pull for '${file_path}': Not ignored on current branch." >&2
+            continue
+        fi
 
         if [ ! -e "${SOURCE_PATH}" ]; then
             echo "Warning: '${file_path}' listed in config but not found in shadow branch. Skipping." >&2

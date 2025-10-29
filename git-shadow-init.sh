@@ -5,7 +5,6 @@ git-shadow-init() {
     local GIT_SHADOW_REMOTE="origin"
     
     # --- Helper Functions ---
-    # (These are nested for encapsulation, but could be global if sourced)
     git_shadow_check_in_repo() {
         git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; return 1; }
     }
@@ -31,7 +30,6 @@ git-shadow-init() {
 
     echo "Checking for shadow branch '${GIT_SHADOW_BRANCH}' on remote '${GIT_SHADOW_REMOTE}'..."
 
-    # Check if the remote branch already exists
     if git ls-remote --exit-code --heads "${GIT_SHADOW_REMOTE}" "${GIT_SHADOW_BRANCH}" >/dev/null 2>&1; then
         echo "Shadow branch '${GIT_SHADOW_BRANCH}' already exists on remote."
     else
@@ -39,7 +37,6 @@ git-shadow-init() {
         
         TEMP_DIR=$(mktemp -d)
         
-        # Initialize a new repo, create the orphan branch, and add the config
         (
             cd "$TEMP_DIR"
             git init -b "${GIT_SHADOW_BRANCH}" >/dev/null
@@ -58,7 +55,6 @@ git-shadow-init() {
     echo "Initialization complete."
     echo "Running an initial 'pull' to restore any existing shadow files..."
 
-    # Check if the pull function exists and call it
     if command -v git-shadow-pull >/dev/null 2>&1; then
         git-shadow-pull
     else
