@@ -1,83 +1,111 @@
-#!/bin/bash
-set -e
+git-shadow-push() {
+    # --- Configuration ---
+    local GIT_SHADOW_BRANCH="shadow"
+    local GIT_SHADOW_CONFIG_FILE=".git-shadow-config"
+    local GIT_SHADOW_REMOTE="origin"
 
-# --- Configuration ---
-SHADOW_BRANCH="shadow"
-CONFIG_FILE=".git-shadow-config"
-REMOTE="origin"
+    # --- Helper Functions ---
+    git_shadow_check_in_repo() {
+        git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; return 1; }
+    }
 
-# --- Helper Functions ---
-git_shadow_check_in_repo() {
-    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; exit 1; }
-}
+    git_shadow_get_repo_root() {
+        git rev-parse --show-toplevel
+    }
 
-git_shadow_get_repo_root() {
-    git rev-parse --show-toplevel
-}
+    git_shadow_get_repo_url() {
+        git config --get "remote.${GIT_SHADOW_REMOTE}.url"
+    }
 
-git_shadow_get_repo_url() {
-    git config --get "remote.${REMOTE}.url"
-}
+    # --- Main Logic ---
+    local REPO_ROOT
+    local REPO_URL
+    local TEMP_DIR
+    local CONFIG_PATH
+    local pattern
+    local file_path
+    local relative_path
 
-# --- Main Logic ---
-git_shadow_check_in_repo
+    git_shadow_check_in_repo || return 1
 
-REPO_ROOT=$(git_shadow_get_repo_root)
-REPO_URL=$(git_shadow_get_repo_url)
-TEMP_DIR=$(mktemp -d)
+    REPO_ROOT=$(git_shadow_get_repo_root)
+    REPO_URL=$(git_shadow_get_repo_url)
+    TEMP_DIR=$(mktemp -d)
 
-echo "Cloning shadow branch to temporary directory..."
-git clone --quiet --depth 1 --branch "${SHADOW_BRANCH}" "${REPO_URL}" "$TEMP_DIR"
+    echo "Cloning shadow branch to temporary directory..."
+    git clone --quiet --depth 1 --branch "${GIT_SHADOW_BRANCH}" "${REPO_URL}" "$TEMP_DIR"
 
-CONFIG_PATH="${TEMP_DIR}/${CONFIG_FILE}"
+    CONFIG_PATH="${TEMP_DIR}/${GIT_SHADOW_CONFIG_FILE}"
 
-if [ ! -f "$CONFIG_PATH" ]; then
-    echo "Error: '${CONFIG_FILE}' not found in shadow branch." >&2
-    echo "Run 'git-shadow-init' or 'git-shadow-add' first." >&2
+    if [ ! -f "$CONFIG_PATH" ]; then
+        echo "Error: '${GIT_SHADOW_CONFIG_FILE}' not found in shadow branch." >&2
+        rm -rf "$TEMP_DIR"
+        return 1
+    fi
+
+    echo "Cleaning old files from temporary shadow branch..."
+    (
+        cd "$TEMP_DIR"
+        # Find all files/dirs *except* the .git dir and the config file, then delete
+        find . -mindepth 1 -not -path "./.git/*" -not -path "./.git" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -exec rm -rf {} +
+    )
+
+    echo "Syncing files from working directory to shadow branch..."
+    
+    # Read patterns from the *temp* config file
+    while IFS= read -r pattern || [ -n "$pattern" ]; do
+        if [ -z "$pattern" ]; then continue; fi
+        if [[ "$pattern" == \#* ]]; then continue; fi
+
+        echo "Searching for pattern: '${pattern}'"
+        
+        # Find all files/dirs matching the pattern *in the main repo*
+        # We must 'cd' to the repo root to get clean relative paths
+        (
+            cd "$REPO_ROOT"
+            # Using 'find' with -name. This handles patterns like '*.log' or 'ai-chat-data'
+            # Note: This is a simple -name match. For globstar `**` it would be more complex.
+            # We strip the leading ./ from find's output
+            find . -name "$pattern" -print | sed 's|^\./||'
+        ) | while IFS= read -r file_path; do
+
+            relative_path="$file_path"
+            
+            # ⭐️ SAFETY CHECK ⭐️
+            if ! git -C "${REPO_ROOT}" check-ignore -q "${relative_path}"; then
+                echo "Warning: Skipping push for '${relative_path}': Not ignored on current branch." >&2
+                continue
+            fi
+
+            # Check if file exists (find should ensure this, but good practice)
+            if [ ! -e "${REPO_ROOT}/${relative_path}" ]; then
+                continue
+            fi
+            
+            echo "  -> Staging: ${relative_path}"
+            
+            # Copy from main repo TO temp clone, preserving path
+            mkdir -p "${TEMP_DIR}/$(dirname "${relative_path}")"
+            cp -r "${REPO_ROOT}/${relative_path}" "${TEMP_DIR}/${relative_path}"
+
+        done
+    done < <(grep -vE '^\s*#|^\s*$' "${CONFIG_PATH}")
+
+    # Commit and push the changes
+    (
+        cd "$TEMP_DIR"
+        git add .
+        
+        if git diff --staged --quiet; then
+            echo "No changes to push."
+        else
+            echo "Committing and pushing changes..."
+            git commit -m "shadow: sync files" >/dev/null
+            git push "${GIT_SHADOW_REMOTE}" "${GIT_SHADOW_BRANCH}" >/dev/null
+            echo "Push complete."
+        fi
+    )
+
     rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-echo "Syncing files from working directory to shadow branch..."
-
-# Loop through each line in the config file
-# Added protection for paths with spaces
-while IFS= read -r file_path || [ -n "$file_path" ]; do
-    if [ -z "$file_path" ]; then continue; fi # Skip empty lines
-    if [[ "$file_path" == \#* ]]; then continue; fi # Skip comments
-
-    SOURCE_PATH="${REPO_ROOT}/${file_path}"
-    DEST_PATH="${TEMP_DIR}/${file_path}"
-
-    if [ ! -e "${SOURCE_PATH}" ]; then
-        echo "Warning: '${file_path}' listed in config but not found in working directory. Skipping." >&2
-        continue
-    fi
-
-    # Ensure the destination directory exists in the temp clone
-    mkdir -p "$(dirname "${DEST_PATH}")"
-    
-    # Copy from the main repo TO the temp clone
-    cp -r "${SOURCE_PATH}" "${DEST_PATH}"
-    echo "  -> Staging: ${file_path}"
-
-done < <(grep -vE '^\s*#|^\s*$' "${CONFIG_PATH}") # Read file, skipping comments/empty lines
-
-# Commit and push the changes
-(
-    cd "$TEMP_DIR"
-    git add .
-    
-    # Check if there are any changes to commit
-    if git diff --staged --quiet; then
-        echo "No changes to push."
-    else
-        echo "Committing and pushing changes..."
-        git commit -m "shadow: sync files" >/dev/null
-        git push "${REMOTE}" "${SHADOW_BRANCH}" >/dev/null
-        echo "Push complete."
-    fi
-)
-
-rm -rf "$TEMP_DIR"
-echo "Shadow push finished."
+    echo "Shadow push finished."
+}
