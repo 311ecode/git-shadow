@@ -34,7 +34,7 @@ git-shadow-add() {
     REPO_ROOT=$(git_shadow_get_repo_root)
     FILE_PATH=$(realpath -s --relative-to="$REPO_ROOT" "$1")
 
-    if ! git check-ignore -q "$FILE_PATH"; then
+    if ! git -C "${REPO_ROOT}" check-ignore -q "$FILE_PATH"; then
         echo "Error: '${FILE_PATH}' is not ignored by your main .gitignore." >&2
         echo "Please add it to your .gitignore first." >&2
         return 1

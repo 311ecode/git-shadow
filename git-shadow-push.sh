@@ -53,6 +53,13 @@ git-shadow-push() {
         SOURCE_PATH="${REPO_ROOT}/${file_path}"
         DEST_PATH="${TEMP_DIR}/${file_path}"
 
+        # ⭐️ FIXED: SAFETY CHECK ⭐️
+        # Check if the file is *actually* ignored on the CURRENT branch.
+        if ! git -C "${REPO_ROOT}" check-ignore -q "${file_path}"; then
+            echo "Warning: Skipping push for '${file_path}': Not ignored on current branch." >&2
+            continue
+        fi
+
         if [ ! -e "${SOURCE_PATH}" ]; then
             echo "Warning: '${file_path}' listed in config but not found in working directory. Skipping." >&2
             continue
