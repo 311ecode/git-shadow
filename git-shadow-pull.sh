@@ -1,70 +1,67 @@
-git-shadow-pull() {
-    # --- Configuration ---
-    local GIT_SHADOW_BRANCH="shadow"
-    local GIT_SHADOW_CONFIG_FILE=".git-shadow-config"
-    local GIT_SHADOW_REMOTE="origin"
+#!/bin/bash
+set -e
 
-    # --- Helper Functions ---
-    git_shadow_check_in_repo() {
-        git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; return 1; }
-    }
+# --- Configuration ---
+SHADOW_BRANCH="shadow"
+CONFIG_FILE=".git-shadow-config"
+REMOTE="origin"
 
-    git_shadow_get_repo_root() {
-        git rev-parse --show-toplevel
-    }
+# --- Helper Functions ---
+git_shadow_check_in_repo() {
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; exit 1; }
+}
 
-    git_shadow_get_repo_url() {
-        git config --get "remote.${GIT_SHADOW_REMOTE}.url"
-    }
+git_shadow_get_repo_root() {
+    git rev-parse --show-toplevel
+}
 
-    # --- Main Logic ---
-    local REPO_ROOT
-    local REPO_URL
-    local TEMP_DIR
-    local relative_path
-    local SOURCE_PATH
-    local DEST_PATH
+git_shadow_get_repo_url() {
+    git config --get "remote.${REMOTE}.url"
+}
 
-    git_shadow_check_in_repo || return 1
+# --- Main Logic ---
+git_shadow_check_in_repo
 
-    REPO_ROOT=$(git_shadow_get_repo_root)
-    REPO_URL=$(git_shadow_get_repo_url)
-    TEMP_DIR=$(mktemp -d)
+REPO_ROOT=$(git_shadow_get_repo_root)
+REPO_URL=$(git_shadow_get_repo_url)
+TEMP_DIR=$(mktemp -d)
 
-    echo "Cloning shadow branch to temporary directory..."
-    git clone --quiet --depth 1 --branch "${GIT_SHADOW_BRANCH}" "${REPO_URL}" "$TEMP_DIR"
+echo "Cloning shadow branch to temporary directory..."
+git clone --quiet --depth 1 --branch "${SHADOW_BRANCH}" "${REPO_URL}" "$TEMP_DIR"
 
-    echo "Syncing all files from shadow branch to working directory..."
+CONFIG_PATH="${TEMP_DIR}/${CONFIG_FILE}"
 
-    # Find ALL files/dirs in the temp clone, except .git and the config file
-    (
-        cd "$TEMP_DIR"
-        find . -mindepth 1 -not -path "./.git/*" -not -path "./.git" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -print | sed 's|^\./||'
-    ) | while IFS= read -r relative_path; do
-    
-        SOURCE_PATH="${TEMP_DIR}/${relative_path}"
-        DEST_PATH="${REPO_ROOT}/${relative_path}"
+if [ ! -f "$CONFIG_PATH" ]; then
+    echo "Error: '${CONFIG_FILE}' not found in shadow branch." >&2
+    echo "Run 'git-shadow-init' or 'git-shadow-add' first." >&2
+    rm -rf "$TEMP_DIR"
+    exit 1
+fi
 
-        # ⭐️ SAFETY CHECK ⭐️
-        # Check if the path is ignored on the *current* branch
-        if ! git -C "${REPO_ROOT}" check-ignore -q "${relative_path}"; then
-            echo "Warning: Skipping pull for '${relative_path}': Not ignored on current branch." >&2
-            continue
-        fi
+echo "Syncing files from shadow branch to working directory..."
 
-        # If we are here, it's safe to restore
-        echo "  <- Restoring: ${relative_path}"
-        mkdir -p "$(dirname "${DEST_PATH}")"
-        cp -r "${SOURCE_PATH}" "${DEST_PATH}"
+# Loop through each line in the config file
+# Added protection for paths with spaces
+while IFS= read -r file_path || [ -n "$file_path" ]; do
+    if [ -z "$file_path" ]; then continue; fi # Skip empty lines
+    if [[ "$file_path" == \#* ]]; then continue; fi # Skip comments
 
-    done
-    
-    # Also pull the config file itself, if it's ignored
-    if git -C "${REPO_ROOT}" check-ignore -q "${GIT_SHADOW_CONFIG_FILE}"; then
-        echo "  <- Restoring: ${GIT_SHADOW_CONFIG_FILE}"
-        cp "${TEMP_DIR}/${GIT_SHADOW_CONFIG_FILE}" "${REPO_ROOT}/${GIT_SHADOW_CONFIG_FILE}"
+    SOURCE_PATH="${TEMP_DIR}/${file_path}"
+    DEST_PATH="${REPO_ROOT}/${file_path}"
+
+    if [ ! -e "${SOURCE_PATH}" ]; then
+        echo "Warning: '${file_path}' listed in config but not found in shadow branch. Skipping." >&2
+        continue
     fi
 
-    rm -rf "$TEMP_DIR"
-    echo "Shadow pull complete. Files are restored in your working directory."
-}
+    # Ensure the destination directory exists in the main repo
+    mkdir -p "$(dirname "${DEST_PATH}")"
+    
+    # Copy from the temp clone TO the main repo
+    cp -r "${SOURCE_PATH}" "${DEST_PATH}"
+    echo "  <- Restoring: ${file_path}"
+
+done < <(grep -vE '^\s*#|^\s*$' "${CONFIG_PATH}") # Read file, skipping comments/empty lines
+
+rm -rf "$TEMP_DIR"
+echo "Shadow pull complete. Files are restored in your working directory."
