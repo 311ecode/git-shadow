@@ -21,8 +21,7 @@ git-shadow-pull() {
     local REPO_ROOT
     local REPO_URL
     local TEMP_DIR
-    local CONFIG_PATH
-    local file_path
+    local relative_path
     local SOURCE_PATH
     local DEST_PATH
 
@@ -35,50 +34,36 @@ git-shadow-pull() {
     echo "Cloning shadow branch to temporary directory..."
     git clone --quiet --depth 1 --branch "${GIT_SHADOW_BRANCH}" "${REPO_URL}" "$TEMP_DIR"
 
-    CONFIG_PATH="${TEMP_DIR}/${GIT_SHADOW_CONFIG_FILE}"
+    echo "Syncing all files from shadow branch to working directory..."
 
-    if [ ! -f "$CONFIG_PATH" ]; then
-        echo "Error: '${GIT_SHADOW_CONFIG_FILE}' not found in shadow branch." >&2
-        echo "Run 'git-shadow-init' or 'git-shadow-add' first." >&2
-        rm -rf "$TEMP_DIR"
-        return 1
-    fi
-
-    echo "Syncing files from shadow branch to working directory..."
-
-    # ⭐️ FIXED: Pull the config file itself, if it's ignored ⭐️
-    if git -C "${REPO_ROOT}" check-ignore -q "${GIT_SHADOW_CONFIG_FILE}"; then
-        cp "${CONFIG_PATH}" "${REPO_ROOT}/${GIT_SHADOW_CONFIG_FILE}"
-        echo "  <- Restoring: ${GIT_SHADOW_CONFIG_FILE}"
-    else
-        # This warning will show in testInit if the .gitignore is not set up first
-        echo "Warning: Skipping pull for '${GIT_SHADOW_CONFIG_FILE}': Not ignored on current branch." >&2
-    fi
-
-    # Now, read the config (from the temp clone) and pull what it lists
-    while IFS= read -r file_path || [ -n "$file_path" ]; do
-        if [ -z "$file_path" ]; then continue; fi
-        if [[ "$file_path" == \#* ]]; then continue; fi
-
-        SOURCE_PATH="${TEMP_DIR}/${file_path}"
-        DEST_PATH="${REPO_ROOT}/${file_path}"
+    # Find ALL files/dirs in the temp clone, except .git and the config file
+    (
+        cd "$TEMP_DIR"
+        find . -mindepth 1 -not -path "./.git/*" -not -path "./.git" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -print | sed 's|^\./||'
+    ) | while IFS= read -r relative_path; do
+    
+        SOURCE_PATH="${TEMP_DIR}/${relative_path}"
+        DEST_PATH="${REPO_ROOT}/${relative_path}"
 
         # ⭐️ SAFETY CHECK ⭐️
-        if ! git -C "${REPO_ROOT}" check-ignore -q "${file_path}"; then
-            echo "Warning: Skipping pull for '${file_path}': Not ignored on current branch." >&2
+        # Check if the path is ignored on the *current* branch
+        if ! git -C "${REPO_ROOT}" check-ignore -q "${relative_path}"; then
+            echo "Warning: Skipping pull for '${relative_path}': Not ignored on current branch." >&2
             continue
         fi
 
-        if [ ! -e "${SOURCE_PATH}" ]; then
-            echo "Warning: '${file_path}' listed in config but not found in shadow branch. Skipping." >&2
-            continue
-        fi
-
+        # If we are here, it's safe to restore
+        echo "  <- Restoring: ${relative_path}"
         mkdir -p "$(dirname "${DEST_PATH}")"
         cp -r "${SOURCE_PATH}" "${DEST_PATH}"
-        echo "  <- Restoring: ${file_path}"
 
-    done < <(grep -vE '^\s*#|^\s*$' "${CONFIG_PATH}")
+    done
+    
+    # Also pull the config file itself, if it's ignored
+    if git -C "${REPO_ROOT}" check-ignore -q "${GIT_SHADOW_CONFIG_FILE}"; then
+        echo "  <- Restoring: ${GIT_SHADOW_CONFIG_FILE}"
+        cp "${TEMP_DIR}/${GIT_SHADOW_CONFIG_FILE}" "${REPO_ROOT}/${GIT_SHADOW_CONFIG_FILE}"
+    fi
 
     rm -rf "$TEMP_DIR"
     echo "Shadow pull complete. Files are restored in your working directory."

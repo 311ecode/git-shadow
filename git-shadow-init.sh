@@ -23,7 +23,6 @@ git-shadow-init() {
     # --- Main Logic ---
     local REPO_URL
     local TEMP_DIR
-    local SCRIPT_DIR
 
     git_shadow_check_in_repo || return 1
     REPO_URL=$(git_shadow_get_repo_url) || return 1
@@ -40,7 +39,7 @@ git-shadow-init() {
         (
             cd "$TEMP_DIR"
             git init -b "${GIT_SHADOW_BRANCH}" >/dev/null
-            echo "# Git Shadow Config - Lists files/dirs to be tracked in this branch" > "${GIT_SHADOW_CONFIG_FILE}"
+            echo "# Git Shadow Config - Lists patterns (e.g., 'secrets.env' or 'ai-chat-data') to track" > "${GIT_SHADOW_CONFIG_FILE}"
             git add "${GIT_SHADOW_CONFIG_FILE}"
             git commit -m "shadow: initialize shadow config" >/dev/null
             git remote add "${GIT_SHADOW_REMOTE}" "${REPO_URL}"
@@ -53,15 +52,6 @@ git-shadow-init() {
 
     echo ""
     echo "Initialization complete."
-    echo "Running an initial 'pull' to restore any existing shadow files..."
-
-    if command -v git-shadow-pull >/dev/null 2>&1; then
-        git-shadow-pull
-    else
-        echo "Warning: 'git-shadow-pull' function not found. Skipping initial pull." >&2
-        echo "Please run 'git-shadow-pull' manually." >&2
-    fi
-
-    echo ""
-    echo "Reminder: Use 'git-shadow-add <path>' to add ignored files to the shadow config."
+    echo "Reminder: Run 'git-shadow-pull' to get the latest shadow files."
+    echo "Reminder: Use 'git-shadow-add <pattern>' to add files to the shadow config."
 }
