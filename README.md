@@ -1,110 +1,138 @@
-# Git Shadow README
+# git-shadow
 
-## Overview
+## 💡 Overview
 
-Git Shadow is a set of shell scripts designed to manage a secondary "shadow" branch in a Git repository. This shadow branch is used to track and manage files that are ignored by the main `.gitignore` file. The primary use case is to handle sensitive or large files that should not be committed to the main branch but need to be version-controlled.
+`git-shadow` is a set of shell functions designed to manage a secondary "shadow" branch within your main Git repository.
 
-## Getting Started
+This shadow branch is used to version-control project-relevant artifacts that are (and should be) ignored by your main `.gitignore`. This includes things like:
+
+* **Large data files**
+* **Long chat histories** or AI conversations
+* **Environment-specific configuration**
+* Other contextual data you want to save but keep out of your main code history.
+
+It works by tracking **filename patterns**, not specific paths. This allows you to add a pattern like `ai-chat-data` and have `git-shadow` automatically find and sync all `ai-chat-data` directories from *any* location in your project.
+
+## ✨ Core Concept
+
+The logic is designed to be simple, safe, and powerful:
+
+1.  **`git-shadow-add <pattern>`**
+    * You add a *pattern* (e.g., `ai-chat-data` or `*.log`) to the `.git-shadow-config` file.
+    * You **do not** add a specific path like `src/ai-chat-data`.
+
+2.  **`git-shadow-push`**
+    * The script reads each pattern from the config.
+    * It **finds** all files/dirs in your working directory that match those patterns (e.g., it finds `src/ai-chat-data` and `lib/ai-chat-data`).
+    * It copies all found items that are **currently ignored** by your `.gitignore` to the `shadow` branch, preserving their full directory structure.
+
+3.  **`git-shadow-pull`**
+    * The script finds **all** files and directories stored in the `shadow` branch.
+    * It restores each one to its original path in your working directory, **only if** that path is **currently ignored** by your `.gitignore`.
+    * This provides a critical safety-check and prevents `git-shadow` from ever overwriting a file that is tracked on your current branch.
+
+### 🚚 Automatic "Move" Detection
+
+This pattern-based logic automatically handles moved files.
+* You move `src/ai-chat-data` to `new/location/ai-chat-data`.
+* You run `git-shadow-push`.
+* The script's "find" command no longer finds the old path but discovers the new one.
+* In the `shadow` branch, this is automatically recorded as a "delete" at the old path and an "add" at the new path. No extra commands are needed.
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Git must be installed on your system.
-- A Git repository must be initialized in the directory where you plan to use Git Shadow.
+* Git must be installed.
+* You must be inside an initialized Git repository.
 
 ### Installation
 
-1. Clone the Git repository containing the Git Shadow scripts.
-2. Source the scripts in your shell configuration file (e.g., `.bashrc`, `.zshrc`).
+1.  Source the loader file your shell configuration file (e.g., `.bashrc`, `.zshrc`).
 
-Example for `.bashrc`:
-```bash
-source /path/to/git-shadow-scripts/git-shadow-init.sh
-source /path/to/git-shadow-scripts/git-shadow-add.sh
-source /path/to/git-shadow-scripts/git-shadow-pull.sh
-source /path/to/git-shadow-scripts/git-shadow-push.sh
-```
+2.  Restart your shell or run `source ~/.bashrc`.
 
-### Initialize Git Shadow
+-----
 
-Run the following command to initialize Git Shadow in your repository:
+## 🛠️ Commands
+
+### 1\. `git-shadow-init`
+
+Initializes `git-shadow` in your repository.
+
 ```bash
 git-shadow-init
 ```
 
 This command will:
-- Check if the shadow branch exists on the remote.
-- If it doesn't exist, it will create and push a new shadow branch with a default configuration file.
 
-### Adding Files to the Shadow Config
+  * Check if the `shadow` branch exists on the `origin` remote.
+  * If not, it will create and push a new, empty `shadow` branch containing only the `.git-shadow-config` file.
 
-To add a file or directory to the shadow config, use the following command:
+### 2\. `git-shadow-add <pattern>`
+
+Adds a new filename pattern to the shadow config.
+
 ```bash
-git-shadow-add <path-to-file-or-dir>
+# Example 1: Track all directories named 'ai-chat-data'
+git-shadow-add "ai-chat-data"
+
+# Example 2: Track all files ending in .log
+git-shadow-add "*.log"
 ```
 
-- `<path-to-file-or-dir>`: The relative path to the file or directory you want to add to the shadow config. This path should be relative to the root of the Git repository.
+This command adds the literal string (e.g., `"ai-chat-data"`) as a new line in the `.git-shadow-config` file and pushes the change.
 
-### Pulling Files from the Shadow Branch
+### 3\. `git-shadow-push`
 
-To pull files from the shadow branch into your working directory, use the following command:
-```bash
-git-shadow-pull
-```
+Finds and saves all ignored files matching the config patterns.
 
-This command will:
-- Clone the shadow branch to a temporary directory.
-- Read the shadow config file and restore the listed files from the shadow branch to your working directory.
-
-### Pushing Files to the Shadow Branch
-
-To push changes from your working directory to the shadow branch, use the following command:
 ```bash
 git-shadow-push
 ```
 
 This command will:
-- Clone the shadow branch to a temporary directory.
-- Read the shadow config file and sync the listed files from your working directory to the shadow branch.
-- Commit and push the changes to the remote shadow branch.
 
-### Using -h and --help
+1.  Read all patterns from `.git-shadow-config` (e.g., `ai-chat-data`).
+2.  Run a "find" command to locate all matching files/dirs in your project.
+3.  Copy all found items that are **ignored by your current `.gitignore`** to a temporary clone.
+4.  Commit and push this new "snapshot" of files to the `shadow` branch.
 
-For detailed help on any command, use the `-h` or `--help` option. This feature is managed at an upper layer and provides detailed usage instructions for each command.
+### 4\. `git-shadow-pull`
 
-## Advanced Usage
+Restores all files from the shadow branch.
 
-### Configuration
-
-The Git Shadow scripts use the following configuration variables:
-- `GIT_SHADOW_BRANCH`: The name of the shadow branch (default: `shadow`).
-- `GIT_SHADOW_CONFIG_FILE`: The name of the shadow config file (default: `.git-shadow-config`).
-- `GIT_SHADOW_REMOTE`: The name of the remote repository (default: `origin`).
-
-These variables can be overridden by setting environment variables or modifying the scripts directly.
-
-### Directory Structure
-
-If the functionality of Git Shadow grows significantly, consider organizing the scripts into directories. For example:
-```
-git-shadow/
-├── git-shadow-init.sh
-├── git-shadow-add.sh
-├── git-shadow-pull.sh
-└── git-shadow-push.sh
+```bash
+git-shadow-pull
 ```
 
-This structure helps maintain readability and organization as the project evolves.
+This command will:
 
-## Troubleshooting
+1.  Clone the `shadow` branch to a temporary directory.
+2.  Find **all** files within that clone (e.g., `src/ai-chat-data`, `lib/ai-chat-data`, `src/secrets.env`).
+3.  For each file, it performs a **safety check**:
+      * **If** the file's path (e.g., `src/ai-chat-data`) is **ignored** by your current branch's `.gitignore`, it is safely restored.
+      * **If** the file's path is **NOT ignored** (e.g., you're on a branch where `src/secrets.env` is tracked), it will **skip** restoring that file and print a warning.
 
-- Ensure that the files you want to add to the shadow config are ignored by your main `.gitignore` file.
-- Verify that the remote repository URL is correctly configured in your Git settings.
-- Check for any errors in the shell scripts and ensure they have the correct permissions to execute.
+-----
 
-## Contributing
+## ⚙️ Configuration
 
-Contributions to Git Shadow are welcome. Please follow the existing code style and ensure that any new functionality is well-documented.
+The `git-shadow` scripts use the following internal variables. You can edit the scripts to change them.
+
+  * `GIT_SHADOW_BRANCH`: The name of the shadow branch (default: `shadow`).
+  * `GIT_SHADOW_CONFIG_FILE`: The config file name (default: `.git-shadow-config`).
+  * `GIT_SHADOW_REMOTE`: The name of the remote (default: `origin`).
+
+## ⚠️ Troubleshooting
+
+  * **Rule \#1:** For `push` or `pull` to work on a file, it **must** be matched by your main `.gitignore` file. The safety checks will prevent any action on non-ignored files.
+  * When you run `git-shadow-init`, you may want to run `git-shadow-add ".git-shadow-config"` and add `.git-shadow-config` to your main `.gitignore` so you can `pull` the config file itself.
+  * Verify that your remote (`origin`) is set up and accessible.
 
 ## License
 
-Git Shadow is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the LICENSE file for details.
+
