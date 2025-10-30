@@ -3,7 +3,7 @@
 # @brief Test suite for the git-shadow utility (Pattern-based logic)
 
 # Main test suite function 🎯
-git_shadow_test_suite() {
+gitShadowTestSuite() {
   export LC_NUMERIC=C  # 🔢
 
   # --- Test Environment Setup ---
@@ -219,6 +219,8 @@ git_shadow_test_suite() {
     "git_shadow_test_pull_patterns"
     "git_shadow_test_move_detection"
     "git_shadow_test_safety_check_pull"
+    "testGitShadowExponentialNestingBug"
+    "testGitShadowGithubIntegration"
   )
 
   local ignored_tests=()  # 🚫
@@ -234,15 +236,3 @@ git_shadow_test_suite() {
   return $result  # 🎉 Done!
 }
 
-# --- Execute if run directly 🚀 ---
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  # Source the functions we are testing
-  SCRIPT_DIR=$(dirname "$0")
-  source "${SCRIPT_DIR}/git-shadow-init.sh"
-  source "${SCRIPT_DIR}/git-shadow-add.sh"
-  source "${SCRIPT_DIR}/git-shadow-push.sh"
-  source "${SCRIPT_DIR}/git-shadow-pull.sh"
-  
-  # Run the suite
-  git_shadow_test_suite
-fi
