@@ -37,9 +37,10 @@ git-shadow-pull() {
     echo "Syncing all files from shadow branch to working directory..."
 
     # Find ALL files/dirs in the temp clone, except .git and the config file
+    # CRITICAL FIX: Use -type f to only get FILES, not directories
     (
         cd "$TEMP_DIR"
-        find . -mindepth 1 -not -path "./.git/*" -not -path "./.git" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -print | sed 's|^\./||'
+        find . -mindepth 1 -type f -not -path "./.git/*" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -print | sed 's|^\./||'
     ) | while IFS= read -r relative_path; do
     
         SOURCE_PATH="${TEMP_DIR}/${relative_path}"
@@ -55,7 +56,7 @@ git-shadow-pull() {
         # If we are here, it's safe to restore
         echo "  <- Restoring: ${relative_path}"
         mkdir -p "$(dirname "${DEST_PATH}")"
-        cp -r "${SOURCE_PATH}" "${DEST_PATH}"
+        cp "${SOURCE_PATH}" "${DEST_PATH}"
 
     done
     
