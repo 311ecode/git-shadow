@@ -16,3 +16,6 @@ source "$LOADER_GIT_SHADOW_26AFBDF5_DIR/git-shadow-add.sh"
 source "$LOADER_GIT_SHADOW_26AFBDF5_DIR/git-shadow-init.sh"
 source "$LOADER_GIT_SHADOW_26AFBDF5_DIR/git-shadow-pull.sh"
 source "$LOADER_GIT_SHADOW_26AFBDF5_DIR/git-shadow-push.sh"
+source "$LOADER_GIT_SHADOW_26AFBDF5_DIR/git-shadow-cleanup.sh"
+source "$LOADER_GIT_SHADOW_26AFBDF5_DIR/git-shadow-persistent.sh"
+

@@ -77,16 +77,22 @@ git-shadow-push() {
     
     # Read patterns from the persistent clone's config file
     while IFS= read -r pattern || [ -n "$pattern" ]; do
-        if [ -z "$pattern" ]; then continue; fi
-        if [[ "$pattern" == \#* ]]; then continue; fi
+        # Skip empty lines and comments
+        if [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
 
         echo "Searching for pattern: '${pattern}'"
         
         # Find all files/dirs matching the pattern *in the main repo*
         (
             cd "$REPO_ROOT"
-            find . -name "$pattern" -print | sed 's|^\./||'
+            find . -name "$pattern" -type f -print | sed 's|^\./||'
         ) | while IFS= read -r file_path; do
+            # Skip empty lines from find output
+            if [[ -z "$file_path" ]]; then
+                continue
+            fi
 
             relative_path="$file_path"
             

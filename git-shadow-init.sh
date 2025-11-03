@@ -3,7 +3,8 @@ git-shadow-init() {
     local GIT_SHADOW_BRANCH="shadow"
     local GIT_SHADOW_CONFIG_FILE=".git-shadow-config"
     local GIT_SHADOW_REMOTE="origin"
-    
+    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow-$$}"
+
     # --- Helper Functions ---
     git_shadow_check_in_repo() {
         git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; return 1; }
@@ -34,7 +35,9 @@ git-shadow-init() {
     else
         echo "Shadow branch not found. Creating it..."
         
-        TEMP_DIR=$(mktemp -d)
+        # Use persistent temp directory
+        TEMP_DIR="${GIT_SHADOW_TEMP_DIR}/init-$(date +%s)"
+        mkdir -p "$TEMP_DIR"
         
         (
             cd "$TEMP_DIR"
@@ -46,8 +49,8 @@ git-shadow-init() {
             git push -u "${GIT_SHADOW_REMOTE}" "${GIT_SHADOW_BRANCH}" >/dev/null
         )
         
-        rm -rf "$TEMP_DIR"
         echo "Successfully created and pushed new branch '${GIT_SHADOW_BRANCH}'."
+        echo "Temporary directory preserved at: $TEMP_DIR"
     fi
 
     echo ""

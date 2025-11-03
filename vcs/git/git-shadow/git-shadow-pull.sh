@@ -1,4 +1,4 @@
-git-shadow-add() {
+git-shadow-pull() {
     # --- Configuration ---
     local GIT_SHADOW_BRANCH="shadow"
     local GIT_SHADOW_CONFIG_FILE=".git-shadow-config"
@@ -9,6 +9,10 @@ git-shadow-add() {
     # --- Helper Functions ---
     git_shadow_check_in_repo() {
         git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: This command must be run inside a Git repository." >&2; return 1; }
+    }
+
+    git_shadow_get_repo_root() {
+        git rev-parse --show-toplevel
     }
 
     git_shadow_get_repo_url() {
@@ -40,49 +44,55 @@ git-shadow-add() {
     }
 
     # --- Main Logic ---
-    local PATTERN="$1"
+    local REPO_ROOT
     local REPO_URL
-    local CONFIG_PATH
+    local relative_path
+    local SOURCE_PATH
+    local DEST_PATH
 
     git_shadow_check_in_repo || return 1
 
-    if [ -z "$PATTERN" ]; then
-        echo "Usage: git-shadow-add <pattern-to-track>" >&2
-        echo "Example: git-shadow-add 'ai-chat-data'" >&2
-        echo "Example: git-shadow-add '*.log'" >&2
-        return 1
-    fi
-
-    echo "Adding pattern '${PATTERN}' to shadow config..."
-
+    REPO_ROOT=$(git_shadow_get_repo_root)
     REPO_URL=$(git_shadow_get_repo_url)
 
     echo "Setting up persistent shadow clone..."
     git_shadow_ensure_persistent_clone "$REPO_URL" || return 1
 
-    CONFIG_PATH="${GIT_SHADOW_PERSISTENT_DIR}/${GIT_SHADOW_CONFIG_FILE}"
+    echo "Syncing all files from shadow branch to working directory..."
 
-    if [ ! -f "$CONFIG_PATH" ]; then
-        echo "Error: '${GIT_SHADOW_CONFIG_FILE}' not found in shadow branch." >&2
-        echo "Please run 'git-shadow-init' first." >&2
-        return 1
-    fi
-
-    if grep -qFx "$PATTERN" "$CONFIG_PATH"; then
-        echo "'${PATTERN}' is already in the shadow config. No changes made."
-        return 0
-    fi
-
-    echo "${PATTERN}" >> "${CONFIG_PATH}"
-
+    # Find ALL files in the persistent clone, except .git and the config file
     (
         cd "$GIT_SHADOW_PERSISTENT_DIR"
-        git add "${GIT_SHADOW_CONFIG_FILE}"
-        git commit -m "shadow: add '${PATTERN}' to config"
-        git push "${GIT_SHADOW_REMOTE}" "${GIT_SHADOW_BRANCH}"
-    ) >/dev/null
+        find . -mindepth 1 -type f -not -path "./.git/*" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -print | sed 's|^\./||'
+    ) | while IFS= read -r relative_path; do
+        # Skip empty lines from find output
+        if [[ -z "$relative_path" ]]; then
+            continue
+        fi
+    
+        SOURCE_PATH="${GIT_SHADOW_PERSISTENT_DIR}/${relative_path}"
+        DEST_PATH="${REPO_ROOT}/${relative_path}"
 
-    echo "Successfully added '${PATTERN}' to shadow config."
-    echo "Run 'git-shadow-push' to upload matching files."
+        # ⭐️ SAFETY CHECK ⭐️
+        # Check if the path is ignored on the *current* branch
+        if ! git -C "${REPO_ROOT}" check-ignore -q "${relative_path}"; then
+            echo "Warning: Skipping pull for '${relative_path}': Not ignored on current branch." >&2
+            continue
+        fi
+
+        # If we are here, it's safe to restore
+        echo "  <- Restoring: ${relative_path}"
+        mkdir -p "$(dirname "${DEST_PATH}")"
+        cp "${SOURCE_PATH}" "${DEST_PATH}"
+
+    done
+    
+    # Also pull the config file itself, if it's ignored
+    if git -C "${REPO_ROOT}" check-ignore -q "${GIT_SHADOW_CONFIG_FILE}"; then
+        echo "  <- Restoring: ${GIT_SHADOW_CONFIG_FILE}"
+        cp "${GIT_SHADOW_PERSISTENT_DIR}/${GIT_SHADOW_CONFIG_FILE}" "${REPO_ROOT}/${GIT_SHADOW_CONFIG_FILE}"
+    fi
+
+    echo "Shadow pull complete. Files are restored in your working directory."
     echo "Persistent clone maintained at: $GIT_SHADOW_PERSISTENT_DIR"
 }
