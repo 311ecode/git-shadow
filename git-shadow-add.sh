@@ -3,8 +3,12 @@ git-shadow-add() {
     local GIT_SHADOW_BRANCH="shadow"
     local GIT_SHADOW_CONFIG_FILE=".git-shadow-config"
     local GIT_SHADOW_REMOTE="origin"
-    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow-$$}"
-    local GIT_SHADOW_PERSISTENT_DIR="${GIT_SHADOW_TEMP_DIR}/persistent-shadow"
+    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow}"
+    local REPO_ROOT
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    local REPO_HASH
+    REPO_HASH=$(echo -n "$REPO_ROOT" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")
+    local GIT_SHADOW_PERSISTENT_DIR="${GIT_SHADOW_TEMP_DIR}/${REPO_HASH}/persistent-shadow"
 
     # --- Helper Functions ---
     git_shadow_check_in_repo() {
@@ -24,7 +28,7 @@ git-shadow-add() {
             git clone --quiet --branch "${GIT_SHADOW_BRANCH}" "${REPO_URL}" "${GIT_SHADOW_PERSISTENT_DIR}" >/dev/null 2>&1
             
             if [ $? -ne 0 ]; then
-                echo "Error: Could not clone shadow branch. Please run 'git-shadow-init' first." >&2
+                echo "Warning: Could not clone shadow branch. It may not exist yet." >&2
                 rm -rf "${GIT_SHADOW_PERSISTENT_DIR}"
                 return 1
             fi
