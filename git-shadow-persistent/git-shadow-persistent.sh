@@ -9,14 +9,3 @@ GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow-$$}"
 GIT_SHADOW_PERSISTENT_DIR="${GIT_SHADOW_TEMP_DIR}/persistent-shadow"
 
 # --- Helper Functions ---
-
-
-
-
-
-
-
-
-
-
-

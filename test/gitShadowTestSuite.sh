@@ -235,4 +235,3 @@ gitShadowTestSuite() {
   
   return $result  # 🎉 Done!
 }
-

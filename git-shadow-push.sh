@@ -3,8 +3,12 @@ git-shadow-push() {
     local GIT_SHADOW_BRANCH="shadow"
     local GIT_SHADOW_CONFIG_FILE=".git-shadow-config"
     local GIT_SHADOW_REMOTE="origin"
-    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow-$$}"
-    local GIT_SHADOW_PERSISTENT_DIR="${GIT_SHADOW_TEMP_DIR}/persistent-shadow"
+    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow}"
+    local REPO_ROOT
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    local REPO_HASH
+    REPO_HASH=$(echo -n "$REPO_ROOT" | md5sum 2>/dev/null | cut -d' ' -f1 || echo "default")
+    local GIT_SHADOW_PERSISTENT_DIR="${GIT_SHADOW_TEMP_DIR}/${REPO_HASH}/persistent-shadow"
 
     # --- Helper Functions ---
     git_shadow_check_in_repo() {
@@ -44,7 +48,6 @@ git-shadow-push() {
     }
 
     # --- Main Logic ---
-    local REPO_ROOT
     local REPO_URL
     local CONFIG_PATH
     local pattern
@@ -69,7 +72,6 @@ git-shadow-push() {
     echo "Cleaning old files from persistent shadow clone..."
     (
         cd "$GIT_SHADOW_PERSISTENT_DIR"
-        # Find all files/dirs *except* the .git dir and the config file, then delete
         find . -mindepth 1 -not -path "./.git/*" -not -path "./.git" -not -path "./${GIT_SHADOW_CONFIG_FILE}" -exec rm -rf {} + 2>/dev/null || true
     )
 
@@ -96,7 +98,7 @@ git-shadow-push() {
                 continue
             fi
 
-            # Check if file exists (find should ensure this, but good practice)
+            # Check if file/dir exists
             if [ ! -e "${REPO_ROOT}/${relative_path}" ]; then
                 continue
             fi
