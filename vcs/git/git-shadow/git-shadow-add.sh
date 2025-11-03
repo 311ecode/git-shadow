@@ -24,7 +24,7 @@ git-shadow-add() {
             git clone --quiet --branch "${GIT_SHADOW_BRANCH}" "${REPO_URL}" "${GIT_SHADOW_PERSISTENT_DIR}" >/dev/null 2>&1
             
             if [ $? -ne 0 ]; then
-                echo "Error: Could not clone shadow branch. Please run 'git-shadow-init' first." >&2
+                echo "Warning: Could not clone shadow branch. It may not exist yet." >&2
                 rm -rf "${GIT_SHADOW_PERSISTENT_DIR}"
                 return 1
             fi
