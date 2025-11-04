@@ -31,6 +31,7 @@ gitShadowTestSuite() {
   local test_functions=(
     "git_shadow_test_init"
     "git_shadow_test_add_and_push_patterns"
+    "git_shadow_test_directory_pattern"
     "git_shadow_test_pull_patterns"
     "git_shadow_test_move_detection"
     "git_shadow_test_safety_check_pull"
