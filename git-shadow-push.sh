@@ -85,9 +85,17 @@ git-shadow-push() {
         echo "Searching for pattern: '${pattern}'"
         
         # Find all files/dirs matching the pattern *in the main repo*
+        # Use -path instead of -name to support directory paths like "docs/research"
         (
             cd "$REPO_ROOT"
-            find . -name "$pattern" -print | sed 's|^\./||'
+            # Try both -path and -name to handle both directory paths and filename patterns
+            if [[ "$pattern" == */* ]]; then
+                # Pattern contains slashes, use -path for directory matching
+                find . -path "*/${pattern}" -print | sed 's|^\./||'
+            else
+                # Simple pattern without slashes, use -name
+                find . -name "$pattern" -print | sed 's|^\./||'
+            fi
         ) | while IFS= read -r file_path; do
 
             relative_path="$file_path"
