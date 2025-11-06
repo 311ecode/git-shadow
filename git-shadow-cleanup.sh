@@ -15,7 +15,7 @@ git-shadow-list-temp() {
     
     if [ -d "$GIT_SHADOW_TEMP_DIR" ]; then
         echo "Git-shadow temporary directories:"
-        find "$GIT_SHADOW_TEMP_DIR" -type d -name "*-*" 2>/dev/null | sort
+        find "$GIT_SHADOW_TEMP_DIR" -type d -maxdepth 2 2>/dev/null | sort
     else
         echo "No git-shadow temporary directories found at: $GIT_SHADOW_TEMP_DIR"
     fi
