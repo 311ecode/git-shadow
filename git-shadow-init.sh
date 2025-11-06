@@ -40,7 +40,7 @@ git-shadow-init() {
     else
         echo "Shadow branch not found. Creating it..."
         
-        # Use persistent temp directory
+        # Use persistent temp directory with timestamp for init
         TEMP_DIR="${GIT_SHADOW_TEMP_DIR}/init-$(date +%s)"
         mkdir -p "$TEMP_DIR"
         
