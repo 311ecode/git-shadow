@@ -1,5 +1,5 @@
 git-shadow-cleanup() {
-    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow-$$}"
+    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow}"
     
     if [ -d "$GIT_SHADOW_TEMP_DIR" ]; then
         echo "Cleaning up git-shadow temporary directories..."
@@ -11,7 +11,7 @@ git-shadow-cleanup() {
 }
 
 git-shadow-list-temp() {
-    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow-$$}"
+    local GIT_SHADOW_TEMP_DIR="${GIT_SHADOW_TEMP_DIR:-/tmp/git-shadow}"
     
     if [ -d "$GIT_SHADOW_TEMP_DIR" ]; then
         echo "Git-shadow temporary directories:"
