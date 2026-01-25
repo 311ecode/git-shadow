@@ -4,7 +4,7 @@
 
 # Main test suite function 🎯
 gitShadowTestSuite() {
-  export LC_NUMERIC=C  # 🔢
+  export LC_NUMERIC=C # 🔢
 
   # --- Test Environment Setup ---
   echo "Setting up test environment..."
@@ -38,7 +38,7 @@ gitShadowTestSuite() {
     "testGitShadowGithubIntegration"
   )
 
-  local ignored_tests=()  # 🚫
+  local ignored_tests=() # 🚫
 
   bashTestRunner test_functions ignored_tests
   local result=$?
@@ -47,6 +47,6 @@ gitShadowTestSuite() {
   echo "---"
   echo "Cleaning up test environment..."
   rm -rf "$GIT_SHADOW_TEST_ROOT"
-  
-  return $result  # 🎉 Done!
+
+  return $result # 🎉 Done!
 }
