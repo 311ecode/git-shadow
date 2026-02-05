@@ -5,7 +5,7 @@ git_shadow_test_move_detection() {
 
   # 1. Move a directory
   mkdir -p "new/location"
-  mv "src/ai-chat-data" "new/location/"
+  \mv "src/ai-chat-data" "new/location/"
 
   # 2. Run push. This should detect the 'move' (as a delete + add)
   if ! git-shadow-push >/dev/null; then
